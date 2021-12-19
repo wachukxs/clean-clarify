@@ -1,5 +1,4 @@
-import React, { ChangeEvent, useState } from "react";
-import logo from "./logo.svg";
+import React, { useEffect, useState } from "react";
 import "./App.css";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
@@ -10,26 +9,27 @@ import FormHelperText from "@mui/material/FormHelperText";
 import MobileDatePicker from "@mui/lab/MobileDatePicker";
 import AdapterDateFns from "@mui/lab/AdapterDateFns";
 import LocalizationProvider from "@mui/lab/LocalizationProvider";
-import { Button, Checkbox, FormControlLabel, Stack, Switch } from "@mui/material";
+import {
+  Button,
+  ButtonGroup,
+  FormControlLabel,
+  Stack,
+  Switch,
+} from "@mui/material";
 import TextField from "@mui/material/TextField";
+import DesktopDatePicker from "@mui/lab/DesktopDatePicker";
+import DatePicker from "@mui/lab/DatePicker";
 
 export interface DeliveryTimeOptions {
   value: string;
   title: string;
 }
 
+// use a Map of set for order
+
 function App() {
-  let [age, setAge] = useState("30");
+  let [deliveryTime, setDeliveryTime] = useState(""); // <"10:30" | "12:30" | "18:30" | "">
   let [dateValue, setDateValue] = useState<Date | null>(new Date());
-  const handleAgeChange = (event: SelectChangeEvent) => {
-    setAge(event.target.value as string);
-  };
-
-  const handleDateChange = (newValue: Date | null) => {
-    console.log("new dateValue", newValue);
-
-    setDateValue(newValue);
-  };
 
   const deliveryTimes: Array<DeliveryTimeOptions> = [
     {
@@ -46,52 +46,152 @@ function App() {
     },
   ];
 
+  let [availableDeliveryTimes, setAvailableDeliveryTimes] =
+    useState<Array<DeliveryTimeOptions>>(deliveryTimes);
+
+  let [placedOrdersValue, setPlacedOrdersValue] = useState<
+    Map<string, Set<string>>
+  >(new Map());
+
+  const handleDeliveryTimeChange = (event: SelectChangeEvent) => {
+    setDeliveryTime(event.target.value as string);
+  };
+
+  const handleDateChange = (newValue: Date | null) => {
+    if (newValue) {
+      console.log("new dateValue", newValue);
+
+      setDateValue(newValue);
+
+      checkAndUpdateAvailableDates();
+    }
+  };
+
+  const handleSumbit = () => {
+
+    if (dateValue && deliveryTime) {
+
+      let newDateValue = parseDate(dateValue);
+
+      if (placedOrdersValue.has(newDateValue)) {
+        placedOrdersValue.get(newDateValue)?.add(deliveryTime);
+
+        setPlacedOrdersValue(placedOrdersValue);
+      } else {
+        console.log("putting", newDateValue);
+
+        placedOrdersValue.set(newDateValue, new Set([deliveryTime]));
+
+        setPlacedOrdersValue(placedOrdersValue);
+      }
+    }
+
+    checkAndUpdateAvailableDates();
+
+    console.log(placedOrdersValue);
+  };
+
+  const handleReset = () => {
+    console.log("resetting");
+  };
+
+  const parseDate = (date: Date) => `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`
+
+  const checkAndUpdateAvailableDates = () => {
+    
+    if (dateValue) {
+      let newDateValue = parseDate(dateValue)
+
+      console.log('has', placedOrdersValue.has(newDateValue));
+      
+      if (placedOrdersValue.has(newDateValue)) {
+
+        availableDeliveryTimes = deliveryTimes.filter(
+          (_t) => !placedOrdersValue.get(newDateValue)?.has(_t.value)
+        );
+
+        console.log("availableDeliveryTimes on", newDateValue, availableDeliveryTimes);
+
+        // reset delivery time input
+        setDeliveryTime("");
+        // there should be a message if there's no avaiable delivery time for the selected date
+        setAvailableDeliveryTimes(availableDeliveryTimes);
+      } else if (!placedOrdersValue.has(newDateValue)) {
+        console.log("else block");
+
+        setAvailableDeliveryTimes(deliveryTimes);
+      }
+    }
+  };
+
   const label = { inputProps: { "aria-label": "Switch demo" } };
 
   return (
     <div className="app">
-      
+      <Stack spacing={3} direction="column" alignItems="center">
+        <FormControlLabel
+          control={<Switch {...label} />}
+          label="Apply pre-existing orders"
+        />
 
-      <FormControlLabel control={<Switch {...label} />} label="Apply pre-existing orders" />
+        <Box sx={{ width: "fit-content" }}>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Stack>
+              <MobileDatePicker
+                minDate={new Date()}
+                label="Delivery date"
+                inputFormat="MM/dd/yyyy"
+                value={dateValue}
+                onChange={handleDateChange}
+                renderInput={(params) => <TextField {...params} />}
+              />
+              {/**
+               * use shouldDisableDate to disable dates with no avaiable delivery time
+               *  */}
+            </Stack>
+          </LocalizationProvider>
+        </Box>
 
-      <Box sx={{ width: "fit-content" }}>
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <Stack>
-            <MobileDatePicker
-              label="Date mobile"
-              inputFormat="MM/dd/yyyy"
-              value={dateValue}
-              onChange={handleDateChange}
-              renderInput={(params) => <TextField {...params} />}
-            />
-          </Stack>
-        </LocalizationProvider>
-      </Box>
-
-      <Box sx={{ minWidth: 120 }}>
-        <FormControl required={true}>
-          <InputLabel id="demo-simple-select-label">Age</InputLabel>
-          <Select
-            labelId="demo-simple-select-label"
-            id="demo-simple-select"
-            value={age}
-            label="Age"
-            onChange={handleAgeChange}
-            inputProps={{ "aria-label": "Choose delivery time" }}
-          >
-            <MenuItem value="">
+        <Box sx={{ minWidth: 120 }}>
+          <FormControl required={true}>
+            <InputLabel id="demo-simple-select-label">Delivery Time</InputLabel>
+            <Select
+              disabled={availableDeliveryTimes.length < 1}
+              labelId="demo-simple-select-label"
+              value={deliveryTime}
+              id="demo-simple-select"
+              label="Delivery Time"
+              onChange={handleDeliveryTimeChange}
+              inputProps={{ "aria-label": "Choose delivery time" }}
+            >
+              {/* <MenuItem key='hello' value="" selected>
               <em>Choose</em>
-            </MenuItem>
-            <MenuItem value={10}>Ten</MenuItem>
-            <MenuItem value={20}>Twenty</MenuItem>
-            <MenuItem value={30}>Thirty</MenuItem>
-          </Select>
-          <FormHelperText>Choose delivery time</FormHelperText>
-        </FormControl>
-      </Box>
+            </MenuItem> */}
+              {availableDeliveryTimes.map((timeOption, i) => (
+                <MenuItem key={i} value={`${timeOption.value}`}>
+                  {timeOption.title}
+                </MenuItem>
+              ))}
+            </Select>
+            <FormHelperText>
+              {availableDeliveryTimes.length < 1
+                ? `No delivery time for selected date`
+                : `Choose delivery time`}
+            </FormHelperText>
+          </FormControl>
+        </Box>
 
-      <Button variant="text">Rest</Button>
-      <Button variant="contained">Submit</Button>
+        <Box sx={{ width: "fit-content" }}>
+          <ButtonGroup aria-label="button group">
+            <Button variant="outlined" onClick={handleReset}>
+              Reset
+            </Button>
+            <Button variant="contained" onClick={handleSumbit}>
+              Submit
+            </Button>
+          </ButtonGroup>
+        </Box>
+      </Stack>
     </div>
   );
 }
