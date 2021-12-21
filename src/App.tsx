@@ -14,14 +14,14 @@ import {
   Button,
   ButtonGroup,
   FormControlLabel,
-  IconButton,
   Stack,
   Toolbar,
   Typography,
 } from "@mui/material";
 import TextField from "@mui/material/TextField";
 import Switch from "@mui/material/Switch";
-import { isWeekend } from "date-fns";
+import { isWeekend, isMonday } from "date-fns";
+import DatePicker from "@mui/lab/DatePicker";
 
 export interface DeliveryTimeOptions {
   value: string;
@@ -65,12 +65,22 @@ function App() {
     Map<String, Map<String, Array<String | Boolean>>>
   >(new Map());
 
-  const checkWeekend = (d: string | Date) => {
+  const checkOtherWeekday = (d: string | Date) => {
     if (d instanceof Date) {
-      return isWeekend(d);
+      return !isWeekend(d) && !isMonday(d);
     } else {
       let dateNumbers = d.split("-").map((v) => parseInt(v));
-      return isWeekend(
+      d = new Date(dateNumbers[0], dateNumbers[1] - 1, dateNumbers[2])
+      return !isWeekend(d) && !isMonday(d);
+    }
+  };
+
+  const checkMonday = (d: string | Date) => {
+    if (d instanceof Date) {
+      return isMonday(d);
+    } else {
+      let dateNumbers = d.split("-").map((v) => parseInt(v));
+      return isMonday(
         new Date(dateNumbers[0], dateNumbers[1] - 1, dateNumbers[2])
       );
     }
@@ -81,7 +91,7 @@ function App() {
       for (let index = 0; index < preOrders.length; index++) {
         const _order = preOrders[index];
 
-        if (_order.date && _order.time) {
+        if (_order.date && _order.time && (checkMonday(_order.date) || checkOtherWeekday(_order.date))) {
     
           if (placedOrdersValue.has(_order.date)) {
             if (
@@ -92,15 +102,15 @@ function App() {
                 .get(_order.date)
                 ?.get(_order.time)?.length;
               if (
-                checkWeekend(_order.date) &&
+                checkMonday(_order.date) &&
                 numberOfPossibleOrders &&
-                numberOfPossibleOrders < 2
+                numberOfPossibleOrders < 4
               ) {
                 placedOrdersValue.get(_order.date)?.get(_order.time)?.push(true); // or customer obj
               } else if (
-                !checkWeekend(_order.date) &&
+                checkOtherWeekday(_order.date) &&
                 numberOfPossibleOrders &&
-                numberOfPossibleOrders < 4
+                numberOfPossibleOrders < 2
               ) {
                 placedOrdersValue.get(_order.date)?.get(_order.time)?.push(true); // or customer obj
               } else {
@@ -146,10 +156,10 @@ function App() {
   };
 
   const handleDateChange = (newValue: Date | null) => {
+    
+    
     if (newValue) {
       setDateValue(newValue);
-
-      checkAndUpdateAvailableDates();
     }
   };
 
@@ -158,7 +168,7 @@ function App() {
   };
 
   const handleSumbit = () => {
-    if (dateValue && deliveryTime) {
+    if (dateValue && deliveryTime && (checkMonday(dateValue) || checkOtherWeekday(dateValue))) {
       let newDateValue = parseDate(dateValue);
 
       if (placedOrdersValue.has(newDateValue)) {
@@ -170,15 +180,15 @@ function App() {
             .get(newDateValue)
             ?.get(deliveryTime)?.length;
           if (
-            checkWeekend(dateValue) &&
+            checkMonday(dateValue) &&
             numberOfPossibleOrders &&
-            numberOfPossibleOrders < 2
+            numberOfPossibleOrders < 4
           ) {
             placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.push(true); // or customer obj
           } else if (
-            !checkWeekend(dateValue) &&
+            checkOtherWeekday(dateValue) &&
             numberOfPossibleOrders &&
-            numberOfPossibleOrders < 4
+            numberOfPossibleOrders < 2
           ) {
             placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.push(true); // or customer obj
           } else {
@@ -223,6 +233,10 @@ function App() {
   }, [checked]);
 
   useEffect(() => {
+    checkAndUpdateAvailableDates();
+  }, [dateValue]);
+
+  useEffect(() => {
     fetchPreOrders();
   }, []);
 
@@ -230,7 +244,7 @@ function App() {
     `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 
   const checkAndUpdateAvailableDates = () => {
-    if (dateValue) {
+    if (dateValue && (checkMonday(dateValue) || checkOtherWeekday(dateValue))) {
       let newDateValue = parseDate(dateValue);
 
       if (placedOrdersValue.has(newDateValue)) {
@@ -240,7 +254,7 @@ function App() {
 
         placedOrdersValue.get(newDateValue)?.forEach((value, key) => {
 
-          if (!checkWeekend(newDateValue) && value.length === 4) {
+          if (checkMonday(newDateValue) && value.length === 4) {
             if (deliveryTime === key) {
               // reset delivery time input
               setDeliveryTime("");
@@ -251,7 +265,7 @@ function App() {
             
             // there should be a message if there's no avaiable delivery time for the selected date
             setAvailableDeliveryTimes(newAvailableDeliveryTimes);
-          } else if (checkWeekend(newDateValue) && value.length === 2) {
+          } else if (checkOtherWeekday(newDateValue) && value.length === 2) {
             if (deliveryTime === key) {
               // reset delivery time input
               setDeliveryTime("");
@@ -265,13 +279,15 @@ function App() {
 
         });
       } else if (!placedOrdersValue.has(newDateValue)) {
-
         setAvailableDeliveryTimes(deliveryTimes);
       }
+    } else {
+      // no shipping on weekends
+      setAvailableDeliveryTimes([]);
     }
   };
 
-  const label = { inputProps: { "aria-label": "Switch demo" } };
+  const label = { inputProps: { "aria-label": "Switch to apply pre-orders" } };
 
   return (
     <div className="app">
@@ -305,12 +321,15 @@ function App() {
         <Box sx={{ width: "fit-content" }}>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Stack>
-              <MobileDatePicker
+              
+              <DatePicker
                 // minDate={new Date()} // cause pre-existing orders are from past
+                className="datepicker"
                 label="Delivery date"
                 inputFormat="MM/dd/yyyy"
                 value={dateValue}
                 onChange={handleDateChange}
+                
                 renderInput={(params) => <TextField {...params} />}
               />
               {/**
@@ -322,12 +341,12 @@ function App() {
 
         <Box sx={{ minWidth: 120 }}>
           <FormControl required={true}>
-            <InputLabel id="demo-simple-select-label">Delivery Time</InputLabel>
+            <InputLabel id="delivery-time-select-label">Delivery Time</InputLabel>
             <Select
               disabled={availableDeliveryTimes.length < 1}
-              labelId="demo-simple-select-label"
+              labelId="delivery-time-select-label"
               value={deliveryTime}
-              id="demo-simple-select"
+              id="delivery-time-select"
               label="Delivery Time"
               onChange={handleDeliveryTimeChange}
               inputProps={{ "aria-label": "Choose delivery time" }}
@@ -348,10 +367,10 @@ function App() {
 
         <Box sx={{ width: "fit-content" }}>
           <ButtonGroup aria-label="button group">
-            <Button variant="outlined" onClick={handleReset}>
+            <Button id="reset-button" variant="outlined" onClick={handleReset}>
               Reset
             </Button>
-            <Button variant="contained" onClick={handleSumbit}>
+            <Button id="submit-button" variant="contained" onClick={handleSumbit}>
               Submit
             </Button>
           </ButtonGroup>
