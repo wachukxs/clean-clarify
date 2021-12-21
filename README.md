@@ -46,8 +46,10 @@ You can learn more in the [Create React App documentation](https://facebook.gith
 To learn React, check out the [React documentation](https://reactjs.org/).
 
 
-## TESTS
+# Run Test
 
 yarn run cypress open
 
-./node_modules/.bin/cypress open
+# Initialize app
+
+yarn install
