@@ -10,26 +10,33 @@ import MobileDatePicker from "@mui/lab/MobileDatePicker";
 import AdapterDateFns from "@mui/lab/AdapterDateFns";
 import LocalizationProvider from "@mui/lab/LocalizationProvider";
 import {
+  AppBar,
   Button,
   ButtonGroup,
   FormControlLabel,
+  IconButton,
   Stack,
-  Switch,
+  Toolbar,
+  Typography,
 } from "@mui/material";
 import TextField from "@mui/material/TextField";
-import DesktopDatePicker from "@mui/lab/DesktopDatePicker";
-import DatePicker from "@mui/lab/DatePicker";
+import Switch from "@mui/material/Switch";
+import { isWeekend } from "date-fns";
 
 export interface DeliveryTimeOptions {
   value: string;
   title: string;
 }
 
-// use a Map of set for order
+//
 
 function App() {
-  let [deliveryTime, setDeliveryTime] = useState(""); // <"10:30" | "12:30" | "18:30" | "">
-  let [dateValue, setDateValue] = useState<Date | null>(new Date());
+  // http://localhost:3000/sample-orders.json
+  const fetchPreOrders = () => {
+    fetch(`${document.location.href}sample-orders.json`)
+      .then((response) => response.json())
+      .then((data) => setPreOrders(data));
+  };
 
   const deliveryTimes: Array<DeliveryTimeOptions> = [
     {
@@ -46,12 +53,74 @@ function App() {
     },
   ];
 
-  let [availableDeliveryTimes, setAvailableDeliveryTimes] =
-    useState<Array<DeliveryTimeOptions>>(deliveryTimes);
+  const [preOrders, setPreOrders] = useState<Array<any>>([]);
+  const [deliveryTime, setDeliveryTime] = useState(""); // <"10:30" | "12:30" | "18:30" | "">
+  const [dateValue, setDateValue] = useState<Date | null>(new Date());
+  const [checked, setChecked] = React.useState(false);
 
-  let [placedOrdersValue, setPlacedOrdersValue] = useState<
-    Map<string, Set<string>>
+  const [availableDeliveryTimes, setAvailableDeliveryTimes] =
+    useState<Array<DeliveryTimeOptions>>(deliveryTimes);
+  // map of dates, map of delivery time, array of bookings
+  const [placedOrdersValue, setPlacedOrdersValue] = useState<
+    Map<String, Map<String, Array<String | Boolean>>>
   >(new Map());
+
+  const checkWeekend = (d: string | Date) => {
+    if (d instanceof Date) {
+      return isWeekend(d);
+    } else {
+      let dateNumbers = d.split("-").map((v) => parseInt(v));
+      return isWeekend(
+        new Date(dateNumbers[0], dateNumbers[1] - 1, dateNumbers[2])
+      );
+    }
+  };
+
+  const applyPreOrders = () => {
+    if (preOrders.length > 0) {
+      for (let index = 0; index < preOrders.length; index++) {
+        const _order = preOrders[index];
+        console.log(_order);
+
+        if (placedOrdersValue.has(_order.date)) {
+          if (
+            placedOrdersValue.get(_order.date)?.has(_order.time) &&
+            placedOrdersValue.get(_order.date)?.get(_order.time)
+          ) {
+            let numberOfPossibleOrders = placedOrdersValue
+              .get(_order.date)
+              ?.get(_order.time)?.length;
+            if (
+              checkWeekend(_order.time) &&
+              numberOfPossibleOrders &&
+              numberOfPossibleOrders < 2
+            ) {
+              placedOrdersValue.get(_order.date)?.get(_order.time)?.push(true); // or customer obj
+            } else if (
+              !checkWeekend(_order.time) &&
+              numberOfPossibleOrders &&
+              numberOfPossibleOrders < 4
+            ) {
+              placedOrdersValue.get(_order.date)?.get(_order.time)?.push(true); // or customer obj
+            } else {
+              // no space
+            }
+          }
+          // placedOrdersValue.get(_order.date)?.add(_order.time);
+
+          setPlacedOrdersValue(placedOrdersValue);
+        } else {
+          console.log("putting", _order.date);
+          placedOrdersValue.set(
+            _order.date,
+            new Map().set(_order.time, [true])
+          );
+
+          setPlacedOrdersValue(placedOrdersValue);
+        }
+      }
+    }
+  };
 
   const handleDeliveryTimeChange = (event: SelectChangeEvent) => {
     setDeliveryTime(event.target.value as string);
@@ -67,23 +136,62 @@ function App() {
     }
   };
 
+  const handleSwitchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setChecked(event.target.checked);
+  };
+
   const handleSumbit = () => {
-
     if (dateValue && deliveryTime) {
-
       let newDateValue = parseDate(dateValue);
 
       if (placedOrdersValue.has(newDateValue)) {
-        placedOrdersValue.get(newDateValue)?.add(deliveryTime);
+        if (
+          placedOrdersValue.get(newDateValue)?.has(deliveryTime) &&
+          placedOrdersValue.get(newDateValue)?.get(deliveryTime)
+        ) {
+          let numberOfPossibleOrders = placedOrdersValue
+            .get(newDateValue)
+            ?.get(deliveryTime)?.length;
+          if (
+            checkWeekend(deliveryTime) &&
+            numberOfPossibleOrders &&
+            numberOfPossibleOrders < 2
+          ) {
+            placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.push(true); // or customer obj
+          } else if (
+            !checkWeekend(deliveryTime) &&
+            numberOfPossibleOrders &&
+            numberOfPossibleOrders < 4
+          ) {
+            placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.push(true); // or customer obj
+          } else {
+            // no space
+          }
+        }
+        // placedOrdersValue.get(_order.date)?.add(_order.time);
+
+        setPlacedOrdersValue(placedOrdersValue);
+      } else {
+        console.log("putting", newDateValue);
+        placedOrdersValue.set(
+          newDateValue,
+          new Map().set(deliveryTime, [true])
+        );
+
+        setPlacedOrdersValue(placedOrdersValue);
+      }
+
+      /* if (placedOrdersValue.has(newDateValue)) {
+        // placedOrdersValue.get(newDateValue)?.add(deliveryTime);
 
         setPlacedOrdersValue(placedOrdersValue);
       } else {
         console.log("putting", newDateValue);
 
-        placedOrdersValue.set(newDateValue, new Set([deliveryTime]));
+        // placedOrdersValue.set(newDateValue, new Set([deliveryTime]));
 
         setPlacedOrdersValue(placedOrdersValue);
-      }
+      } */
     }
 
     checkAndUpdateAvailableDates();
@@ -93,29 +201,73 @@ function App() {
 
   const handleReset = () => {
     console.log("resetting");
+    setDeliveryTime("");
+    setDateValue(new Date());
+    setAvailableDeliveryTimes(deliveryTimes);
+    setPlacedOrdersValue(
+      new Map<String, Map<String, Array<String | Boolean>>>()
+    );
   };
 
-  const parseDate = (date: Date) => `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`
+  useEffect(() => {
+    if (checked && preOrders) {
+      handleReset();
+
+      applyPreOrders();
+    }
+  }, [checked]);
+
+  useEffect(() => {
+    fetchPreOrders();
+  }, []);
+
+  const parseDate = (date: Date) =>
+    `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 
   const checkAndUpdateAvailableDates = () => {
-    
     if (dateValue) {
-      let newDateValue = parseDate(dateValue)
+      let newDateValue = parseDate(dateValue);
 
-      console.log('has', placedOrdersValue.has(newDateValue));
-      
-      if (placedOrdersValue.has(newDateValue)) {
+      console.log("has", placedOrdersValue.has(newDateValue));
 
-        availableDeliveryTimes = deliveryTimes.filter(
-          (_t) => !placedOrdersValue.get(newDateValue)?.has(_t.value)
-        );
+      if (
+        placedOrdersValue.has(newDateValue) &&
+        placedOrdersValue.get(newDateValue)?.has(deliveryTime)
+      ) {
+        if (
+          checkWeekend(deliveryTime) &&
+          placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.length == 2
+        ) {
+          let newAvailableDeliveryTimes = deliveryTimes.filter(
+            (_t) => _t.value != deliveryTime
+          );
+          // reset delivery time input
+          setDeliveryTime("");
+          // there should be a message if there's no avaiable delivery time for the selected date
+          setAvailableDeliveryTimes(newAvailableDeliveryTimes);
+          console.log(
+            "availableDeliveryTimes on",
+            newDateValue,
+            newAvailableDeliveryTimes
+          );
+        } else if (
+          !checkWeekend(deliveryTime) &&
+          placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.length == 4
+        ) {
+          let newAvailableDeliveryTimes = deliveryTimes.filter(
+            (_t) => _t.value != deliveryTime
+          );
+          // reset delivery time input
+          setDeliveryTime("");
+          // there should be a message if there's no avaiable delivery time for the selected date
+          setAvailableDeliveryTimes(newAvailableDeliveryTimes);
 
-        console.log("availableDeliveryTimes on", newDateValue, availableDeliveryTimes);
-
-        // reset delivery time input
-        setDeliveryTime("");
-        // there should be a message if there's no avaiable delivery time for the selected date
-        setAvailableDeliveryTimes(availableDeliveryTimes);
+          console.log(
+            "availableDeliveryTimes on",
+            newDateValue,
+            newAvailableDeliveryTimes
+          );
+        }
       } else if (!placedOrdersValue.has(newDateValue)) {
         console.log("else block");
 
@@ -128,9 +280,30 @@ function App() {
 
   return (
     <div className="app">
-      <Stack spacing={3} direction="column" alignItems="center">
+      <Box sx={{ flexGrow: 1 }}>
+        <AppBar position="static">
+          <Toolbar>
+            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+              Clarify UI
+            </Typography>
+          </Toolbar>
+        </AppBar>
+      </Box>
+
+      <Stack
+        className="main"
+        spacing={3}
+        direction="column"
+        alignItems="center"
+      >
         <FormControlLabel
-          control={<Switch {...label} />}
+          control={
+            <Switch
+              {...label}
+              checked={checked}
+              onChange={handleSwitchChange}
+            />
+          }
           label="Apply pre-existing orders"
         />
 
