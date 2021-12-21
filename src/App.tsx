@@ -55,7 +55,7 @@ function App() {
 
   const [preOrders, setPreOrders] = useState<Array<any>>([]);
   const [deliveryTime, setDeliveryTime] = useState(""); // <"10:30" | "12:30" | "18:30" | "">
-  const [dateValue, setDateValue] = useState<Date | null>(new Date());
+  const [dateValue, setDateValue] = useState<Date | null>(null); // new Date()
   const [checked, setChecked] = React.useState(false);
 
   const [availableDeliveryTimes, setAvailableDeliveryTimes] =
@@ -80,45 +80,64 @@ function App() {
     if (preOrders.length > 0) {
       for (let index = 0; index < preOrders.length; index++) {
         const _order = preOrders[index];
-        console.log(_order);
 
-        if (placedOrdersValue.has(_order.date)) {
-          if (
-            placedOrdersValue.get(_order.date)?.has(_order.time) &&
-            placedOrdersValue.get(_order.date)?.get(_order.time)
-          ) {
-            let numberOfPossibleOrders = placedOrdersValue
-              .get(_order.date)
-              ?.get(_order.time)?.length;
+        if (_order.date && _order.time) {
+    
+          if (placedOrdersValue.has(_order.date)) {
             if (
-              checkWeekend(_order.time) &&
-              numberOfPossibleOrders &&
-              numberOfPossibleOrders < 2
+              placedOrdersValue.get(_order.date)?.has(_order.time) &&
+              placedOrdersValue.get(_order.date)?.get(_order.time)
             ) {
-              placedOrdersValue.get(_order.date)?.get(_order.time)?.push(true); // or customer obj
-            } else if (
-              !checkWeekend(_order.time) &&
-              numberOfPossibleOrders &&
-              numberOfPossibleOrders < 4
-            ) {
-              placedOrdersValue.get(_order.date)?.get(_order.time)?.push(true); // or customer obj
+              let numberOfPossibleOrders = placedOrdersValue
+                .get(_order.date)
+                ?.get(_order.time)?.length;
+              if (
+                checkWeekend(_order.date) &&
+                numberOfPossibleOrders &&
+                numberOfPossibleOrders < 2
+              ) {
+                placedOrdersValue.get(_order.date)?.get(_order.time)?.push(true); // or customer obj
+              } else if (
+                !checkWeekend(_order.date) &&
+                numberOfPossibleOrders &&
+                numberOfPossibleOrders < 4
+              ) {
+                placedOrdersValue.get(_order.date)?.get(_order.time)?.push(true); // or customer obj
+              } else {
+                // no space
+              }
             } else {
-              // no space
+              // new delierytime
+              placedOrdersValue.get(_order.date)?.set(_order.time, [true])
+    
             }
+    
+            setPlacedOrdersValue(placedOrdersValue);
+          } else {
+            placedOrdersValue.set(
+              _order.date,
+              new Map().set(_order.time, [true])
+            );
+    
+            setPlacedOrdersValue(placedOrdersValue);
           }
-          // placedOrdersValue.get(_order.date)?.add(_order.time);
-
-          setPlacedOrdersValue(placedOrdersValue);
-        } else {
-          console.log("putting", _order.date);
-          placedOrdersValue.set(
-            _order.date,
-            new Map().set(_order.time, [true])
-          );
-
-          setPlacedOrdersValue(placedOrdersValue);
+    
         }
+    
+        checkAndUpdateAvailableDates();
+
       }
+
+      // preOrders.forEach(async (_order: any) => {
+      //   setDeliveryTime(_order.time)
+      //   let _date = _order.date.split('-').map((v: string) => parseInt(v))
+        
+      //   setDateValue(new Date(_date[0], _date[1] - 1, _date[2]))
+      //   console.log('doing', dateValue, deliveryTime);
+        
+      //   handleSumbit()
+      // })
+      
     }
   };
 
@@ -128,8 +147,6 @@ function App() {
 
   const handleDateChange = (newValue: Date | null) => {
     if (newValue) {
-      console.log("new dateValue", newValue);
-
       setDateValue(newValue);
 
       checkAndUpdateAvailableDates();
@@ -153,13 +170,13 @@ function App() {
             .get(newDateValue)
             ?.get(deliveryTime)?.length;
           if (
-            checkWeekend(deliveryTime) &&
+            checkWeekend(dateValue) &&
             numberOfPossibleOrders &&
             numberOfPossibleOrders < 2
           ) {
             placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.push(true); // or customer obj
           } else if (
-            !checkWeekend(deliveryTime) &&
+            !checkWeekend(dateValue) &&
             numberOfPossibleOrders &&
             numberOfPossibleOrders < 4
           ) {
@@ -167,12 +184,14 @@ function App() {
           } else {
             // no space
           }
+        } else {
+          // new delierytime
+          placedOrdersValue.get(newDateValue)?.set(deliveryTime, [true])
+
         }
-        // placedOrdersValue.get(_order.date)?.add(_order.time);
 
         setPlacedOrdersValue(placedOrdersValue);
       } else {
-        console.log("putting", newDateValue);
         placedOrdersValue.set(
           newDateValue,
           new Map().set(deliveryTime, [true])
@@ -181,26 +200,12 @@ function App() {
         setPlacedOrdersValue(placedOrdersValue);
       }
 
-      /* if (placedOrdersValue.has(newDateValue)) {
-        // placedOrdersValue.get(newDateValue)?.add(deliveryTime);
-
-        setPlacedOrdersValue(placedOrdersValue);
-      } else {
-        console.log("putting", newDateValue);
-
-        // placedOrdersValue.set(newDateValue, new Set([deliveryTime]));
-
-        setPlacedOrdersValue(placedOrdersValue);
-      } */
     }
 
     checkAndUpdateAvailableDates();
-
-    console.log(placedOrdersValue);
   };
 
   const handleReset = () => {
-    console.log("resetting");
     setDeliveryTime("");
     setDateValue(new Date());
     setAvailableDeliveryTimes(deliveryTimes);
@@ -228,48 +233,38 @@ function App() {
     if (dateValue) {
       let newDateValue = parseDate(dateValue);
 
-      console.log("has", placedOrdersValue.has(newDateValue));
+      if (placedOrdersValue.has(newDateValue)) {
+        setAvailableDeliveryTimes(deliveryTimes);
 
-      if (
-        placedOrdersValue.has(newDateValue) &&
-        placedOrdersValue.get(newDateValue)?.has(deliveryTime)
-      ) {
-        if (
-          checkWeekend(deliveryTime) &&
-          placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.length == 2
-        ) {
-          let newAvailableDeliveryTimes = deliveryTimes.filter(
-            (_t) => _t.value != deliveryTime
-          );
-          // reset delivery time input
-          setDeliveryTime("");
-          // there should be a message if there's no avaiable delivery time for the selected date
-          setAvailableDeliveryTimes(newAvailableDeliveryTimes);
-          console.log(
-            "availableDeliveryTimes on",
-            newDateValue,
-            newAvailableDeliveryTimes
-          );
-        } else if (
-          !checkWeekend(deliveryTime) &&
-          placedOrdersValue.get(newDateValue)?.get(deliveryTime)?.length == 4
-        ) {
-          let newAvailableDeliveryTimes = deliveryTimes.filter(
-            (_t) => _t.value != deliveryTime
-          );
-          // reset delivery time input
-          setDeliveryTime("");
-          // there should be a message if there's no avaiable delivery time for the selected date
-          setAvailableDeliveryTimes(newAvailableDeliveryTimes);
+        // reset available times then re-calculate
 
-          console.log(
-            "availableDeliveryTimes on",
-            newDateValue,
-            newAvailableDeliveryTimes
-          );
-        }
+        placedOrdersValue.get(newDateValue)?.forEach((value, key) => {
+
+          if (!checkWeekend(newDateValue) && value.length === 4) {
+            if (deliveryTime === key) {
+              // reset delivery time input
+              setDeliveryTime("");
+            }
+            let newAvailableDeliveryTimes = availableDeliveryTimes.filter(
+              (_t) => _t.value !== key
+            );
+            
+            // there should be a message if there's no avaiable delivery time for the selected date
+            setAvailableDeliveryTimes(newAvailableDeliveryTimes);
+          } else if (checkWeekend(newDateValue) && value.length === 2) {
+            if (deliveryTime === key) {
+              // reset delivery time input
+              setDeliveryTime("");
+            }
+            let newAvailableDeliveryTimes = availableDeliveryTimes.filter(
+              (_t) => _t.value !== key
+            );
+            // there should be a message if there's no avaiable delivery time for the selected date
+            setAvailableDeliveryTimes(newAvailableDeliveryTimes);
+          }
+
+        });
       } else if (!placedOrdersValue.has(newDateValue)) {
-        console.log("else block");
 
         setAvailableDeliveryTimes(deliveryTimes);
       }
@@ -311,7 +306,7 @@ function App() {
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Stack>
               <MobileDatePicker
-                minDate={new Date()}
+                // minDate={new Date()} // cause pre-existing orders are from past
                 label="Delivery date"
                 inputFormat="MM/dd/yyyy"
                 value={dateValue}
@@ -337,9 +332,6 @@ function App() {
               onChange={handleDeliveryTimeChange}
               inputProps={{ "aria-label": "Choose delivery time" }}
             >
-              {/* <MenuItem key='hello' value="" selected>
-              <em>Choose</em>
-            </MenuItem> */}
               {availableDeliveryTimes.map((timeOption, i) => (
                 <MenuItem key={i} value={`${timeOption.value}`}>
                   {timeOption.title}
